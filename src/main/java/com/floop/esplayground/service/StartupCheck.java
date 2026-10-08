@@ -2,6 +2,8 @@ package com.floop.esplayground.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.Refresh;
+import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket;
 import co.elastic.clients.elasticsearch.core.*;
 import co.elastic.clients.elasticsearch.cluster.HealthResponse;
 
@@ -108,8 +110,48 @@ public class StartupCheck implements CommandLineRunner {
         }
 
         for (Hit<Contact> hit : cityResponse.hits().hits()){
-            System.out.println(hit.id() + " -> " + hit.source().city());
+            System.out.println(hit.id() + " -> " + hit.source().name() + " from " + hit.source().city());
         }
+
+        int page = 1;
+        int size = 2;
+        SearchResponse<Contact> boolResponse = client.search(s -> s.index("playground-contacts")
+                        .from(page * size)
+                        .size(size)
+                        .sort(srt -> srt.field(f -> f.field("name.raw").order(SortOrder.Asc)))
+                .query(q-> q
+                        .bool(b-> b
+                                .filter(f->f.term(t->t.field("active").value(true)))
+                                .filter(f->f.term(t->t.field("city").value("Baku")))
+                                .filter(f->f.range(r->r.date(d->d.field("createdAt").gte("2024-01-01")))))),
+                Contact.class);
+
+        System.out.println("""
+                
+                Bool  sorgunuzun cavablari:\s
+                """);
+        for (Hit<Contact> hit : boolResponse.hits().hits()){
+            System.out.println("id: "  +hit.id() + " -> " + hit.source().name() + " yasadigi seher: " + hit.source().city() );
+        }
+
+        SearchResponse<Void> aggResp = client.search(s -> s
+
+                .index("playground-contacts")
+                .size(0)
+                        .query(q->q.term(t->t.field("active").value(true)))
+                .aggregations("by_city",a -> a.terms(t->t.field("city")))
+                .aggregations("newest",a->a.max(m->m.field("createdAt"))),
+
+
+                Void.class);
+
+        for (StringTermsBucket b : aggResp.aggregations().get("by_city").sterms().buckets().array()){
+            System.out.println(b.key().stringValue() + " -> " + b.docCount());
+        }
+
+        System.out.println("Ən yeni: " + aggResp.aggregations().get("newest").max().valueAsString());
+
+
 
 
 
