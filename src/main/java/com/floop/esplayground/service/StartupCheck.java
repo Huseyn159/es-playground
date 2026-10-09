@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-@Component
+
 public class StartupCheck implements CommandLineRunner {
 
     private final ElasticsearchClient client;
@@ -150,6 +150,47 @@ public class StartupCheck implements CommandLineRunner {
         }
 
         System.out.println("Ən yeni: " + aggResp.aggregations().get("newest").max().valueAsString());
+
+
+
+
+        int id = 14;
+
+        List<Contact> contacts = List.of(
+             new Contact   ("Vusal Quliyev","Ganja","+994701000014",true,"2024-01-01"),
+             new Contact("Lalə Məmmədova","Sumgait","+994701000015",false,"2023-09-12")
+        );
+
+        BulkRequest.Builder br = new BulkRequest.Builder();
+        for (Contact contact : contacts){
+            String docId = String.valueOf(id++);
+            br.operations(op -> op.index(i -> i.index("phonebook-playground").id(docId).document(contact)));
+        }
+
+        BulkResponse result = client.bulk(br.refresh(Refresh.WaitFor).build());
+
+
+        if (result.errors()){
+            for (BulkResponseItem item : result.items()){
+                if (item.error() != null){
+                    System.out.println("Xeta! id = " + item.id() + "  Xeta Sebebi -> " + item.error().reason());
+                }
+            }
+        }else {
+            System.out.println("Hamısı yazıldı ✅");
+        }
+
+        SearchResponse<Contact> finalTaskResponse = client.search(q->q
+                        .aggregations("by_city",t->t.terms(f->f.field("city")))
+                        .aggregations("oldest",o->o.min(f->f.field("createdAt")))
+                .query(b->b
+                        .bool(f->f
+                                .must(m->m.term(fl->fl.field("name.raw").value("quliyev")))
+                                .filter(t->t.term(fl->fl.field("active").value(true)))
+                                .mustNot(mn->mn.term(fl->fl.field("city").value("Baku")))
+                                .filter(r->r.range(d->d.date(c->c.gte("2024-01-01")))))),
+                Contact.class);
+
 
 
 
