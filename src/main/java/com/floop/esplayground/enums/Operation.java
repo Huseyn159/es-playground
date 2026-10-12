@@ -1,5 +1,5 @@
 package com.floop.esplayground.enums;
 
 public enum Operation{
-    MATCH,EQUAL,GTE
+    MATCH,EQUAL,GTE,IN,LTE
 }
